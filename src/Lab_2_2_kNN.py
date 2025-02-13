@@ -18,7 +18,12 @@ def minkowski_distance(a, b, p=2):
     Returns:
         float: Minkowski distance between arrays a and b.
     """
-
+    sumatorio = 0
+    for j in range(len(a)):
+        valor = abs(a[j]-b[j])**p
+        sumatorio += valor
+    distancia = sumatorio ** (1/p)
+    return distancia
     # TODO
 
 
@@ -51,6 +56,18 @@ class knn:
             p (int, optional): The degree of the Minkowski distance. Defaults to 2.
         """
         # TODO
+        if len(X_train) != len(y_train):
+            raise ValueError("Length of X_train and y_train must be equal.")
+        else:
+            self.x_train = X_train
+            self.y_train = y_train
+        
+        if k < 0 or p < 0:
+            raise ValueError("k and p must be positive integers.")
+        else:
+            self.k = k
+            self.p = p
+        
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         """
@@ -63,6 +80,17 @@ class knn:
             np.ndarray: Predicted class labels.
         """
         # TODO
+
+        predicciones = []
+        for x in X:
+            distancias = self.compute_distances(x)
+            indices = self.get_k_nearest_neighbors(distancias)
+            labels = self.y_train[indices]
+            vecino_mas_comun = self.most_common_label(labels)
+            predicciones.append(vecino_mas_comun)
+        
+        return predicciones
+
 
     def predict_proba(self, X):
         """
@@ -78,7 +106,29 @@ class knn:
             np.ndarray: Predicted class probabilities.
         """
         # TODO
-
+        predicted_class_probabilities = []
+        for x in X:
+            distancias = self.compute_distances(x)
+            indices = self.get_k_nearest_neighbors(distancias)
+            knn_labels = self.y_train[indices]
+            labels_encontrados = []
+            contadores = []
+            for label in knn_labels:
+                if label in labels_encontrados:
+                    indice = labels_encontrados.index(label)
+                    contadores[indice] = contadores[indice] + 1
+                else:
+                    labels_encontrados.append(label)
+                    contadores.append(1)
+            probas = []
+            for contador in contadores:
+                prob = contador/self.k
+                probas.append(prob)
+            predicted_class_probabilities.append(probas)
+        predicted_class_probabilities = np.array(predicted_class_probabilities)
+        
+        return predicted_class_probabilities
+            
     def compute_distances(self, point: np.ndarray) -> np.ndarray:
         """Compute distance from a point to every point in the training dataset
 
@@ -88,7 +138,13 @@ class knn:
         Returns:
             np.ndarray: distance from point to each point in the training dataset.
         """
-        # TODO
+        distancias = []
+        x_train = self.x_train
+        for x in x_train:
+            distancia = minkowski_distance(point,x)
+            distancias.append(distancia)
+        
+        return distancias
 
     def get_k_nearest_neighbors(self, distances: np.ndarray) -> np.ndarray:
         """Get the k nearest neighbors indices given the distances matrix from a point.
@@ -102,6 +158,10 @@ class knn:
         Hint:
             You might want to check the np.argsort function.
         """
+        k = self.k
+        indices = np.argsort(distances)
+        k_indices = indices[0:k]
+        return k_indices
         # TODO
 
     def most_common_label(self, knn_labels: np.ndarray) -> int:
@@ -114,6 +174,21 @@ class knn:
             int: most common label
         """
         # TODO
+        max_contador = 0
+        labels_encontrados = []
+        contadores = []
+        for label in knn_labels:
+            if label in labels_encontrados:
+                indice = labels_encontrados.index(label)
+                contadores[indice] = contadores[indice] + 1
+                if contadores[indice] > max_contador:
+                    max_contador = contadores[indice]
+                    label_max = label
+            else:
+                labels_encontrados.append(label)
+                contadores.append(1)
+        return label_max
+
 
     def __str__(self):
         """
@@ -219,20 +294,44 @@ def evaluate_classification_metrics(y_true, y_pred, positive_label):
 
     # Confusion Matrix
     # TODO
+    tn = np.sum((y_true_mapped == 0) & (y_pred_mapped==0))
+    fp = np.sum((y_true_mapped == 0) & (y_pred_mapped==1))
+    fn = np.sum((y_true_mapped == 1) & (y_pred_mapped==0))
+    tp = np.sum((y_true_mapped == 1) & (y_pred_mapped==1))
 
     # Accuracy
+    if (tp+tn+fp+fn) != 0:
+        accuracy = (tp +tn) / (tp+tn+fp+fn)
+    else:
+        accuracy = 0
     # TODO
 
     # Precision
+    if (tp + fp) != 0:
+        precision = tp / (tp+fp)
+    else:
+        precision = 0
     # TODO
 
     # Recall (Sensitivity)
+    if (tp+fn) != 0:
+        recall = tp / (tp+fn)
+    else:
+        recall = 0
     # TODO
 
     # Specificity
+    if (tn+fp) != 0:
+        specificity = tn / (tn+fp)
+    else:
+        specificity = 0
     # TODO
 
     # F1 Score
+    if (precision + recall) != 0:
+        f1 =2* precision * recall / (precision + recall)
+    else:
+        f1 = 0
     # TODO
 
     return {
@@ -270,7 +369,38 @@ def plot_calibration_curve(y_true, y_probs, positive_label, n_bins=10):
 
     """
     # TODO
-    return {"bin_centers": bin_centers, "true_proportions": true_proportions}
+    y_true_mapped = np.array([1 if label == positive_label else 0 for label in y_true])
+    y_probs = np.array(y_probs)
+    bins = np.linspace(0, 1, n_bins + 1)
+    indices_y_probs = np.digitize(y_probs, bins) - 1 
+
+
+    true_proportions = np.zeros(n_bins)
+    bin_counts = np.zeros(n_bins)
+    centros = (bins[:-1] + bins[1:]) / 2 
+    
+    for i in range(len(y_probs)):
+        bin_idx = indices_y_probs[i]
+        if 0 <= bin_idx < n_bins:  
+            true_proportions[bin_idx] += y_true_mapped[i]
+            bin_counts[bin_idx] += 1
+
+    for i in range(len(bin_counts)):
+        if bin_counts[i] > 0:
+            true_proportions[i] /= bin_counts[i]
+        else:
+            true_proportions[i] = np.nan 
+
+    plt.figure(figsize=(6, 6))
+    plt.plot(centros, true_proportions, marker='o', linestyle='-', label="Empirical fraction of positives")
+    plt.plot([0, 1], [0, 1], linestyle="--", color="gray", label="Perfectly calibrated")
+    plt.xlabel("Mean predicted probability")
+    plt.ylabel("Fraction of positives")
+    plt.title("Calibration Plot")
+    plt.legend()
+    plt.grid()
+    plt.show()
+    return {"bin_centers": centros, "true_proportions": true_proportions}
 
 
 
@@ -300,6 +430,7 @@ def plot_probability_histograms(y_true, y_probs, positive_label, n_bins=10):
 
     """
     # TODO
+    y_true_mapped = np.array([1 if label == positive_label else 0 for label in y_true])
 
     return {
         "array_passed_to_histogram_of_positive_class": y_probs[y_true_mapped == 1],
@@ -330,4 +461,36 @@ def plot_roc_curve(y_true, y_probs, positive_label):
 
     """
     # TODO
+    y_true_mapped = np.array([1 if label == positive_label else 0 for label in y_true])
+    
+    thresholds = np.linspace(0, 1, 11)
+    tpr = []
+    fpr = []
+    
+    for thresh in thresholds:
+        predics = []
+        for prob in y_probs:
+            if prob >= thresh:
+                predics.append(1)
+            else:
+                predics.append(0)
+        predics = np.array(predics)
+
+        tp = np.sum((y_true_mapped == 1) & (predics == 1))
+        fp = np.sum((y_true_mapped == 0) & (predics == 1))
+        fn = np.sum((y_true_mapped == 1) & (predics == 0))
+        tn = np.sum((y_true_mapped == 0) & (predics == 0))
+        
+        tpr.append(tp / (tp + fn) if (tp + fn) > 0 else 0)
+        fpr.append(fp / (fp + tn) if (fp + tn) > 0 else 0)
+    
+    plt.figure(figsize=(6, 6))
+    plt.plot(fpr, tpr,label="ROC Curve")
+    plt.plot([0, 1], [0, 1],label="Random Guess")
+    plt.xlabel("False Positive Rate")
+    plt.ylabel("True Positive Rate")
+    plt.title("Receiver Operating Characteristic (ROC) Curve")
+    plt.legend()
+    plt.grid()
+    plt.show()
     return {"fpr": np.array(fpr), "tpr": np.array(tpr)}
